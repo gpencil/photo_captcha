@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滑块验证码演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 450px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .captcha-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 350px;
+            height: 200px;
+            margin: 0 auto;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .refresh-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s;
+            z-index: 10;
+        }
+
+        .refresh-icon:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: rotate(90deg);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .refresh-icon svg {
+            width: 18px;
+            height: 18px;
+            fill: #667eea;
+        }
+
+        #bgCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 350px;
+            height: 200px;
+        }
+
+        #sliderCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 350px;
+            height: 200px;
+            /* 调试用：给canvas添加半透明边框 */
+            /* border: 1px dashed rgba(255, 0, 0, 0.3); */
+        }
+
+        .slider-control {
+            margin-top: 15px;
+        }
+
+        .slider-track {
+            position: relative;
+            width: 100%;
+            height: 48px;
+            background: #f0f0f0;
+            border-radius: 24px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .slider-handle {
+            position: absolute;
+            left: 0;
+            top: 4px;
+            width: 50px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slider-handle:hover {
+            transform: scale(1.05);
+        }
+
+        .slider-handle:active {
+            transform: scale(0.95);
+        }
+
+        .slider-handle::before {
+            content: '→';
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .slider-text {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 14px;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .message {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>滑块验证码演示</h1>
+
+        <div class="loading" id="loading">加载中...</div>
+
+        <div class="captcha-container" id="captchaContainer">
+            <div class="canvas-wrapper">
+                <canvas id="bgCanvas" width="350" height="200"></canvas>
+                <canvas id="sliderCanvas" width="350" height="200"></canvas>
+                <div class="refresh-icon" onclick="refreshCaptcha()" title="刷新验证码">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="slider-control">
+                <div class="slider-track" id="sliderTrack">
+                    <div class="slider-text">拖动滑块完成验证</div>
+                    <div class="slider-handle" id="sliderHandle"></div>
+                </div>
+            </div>
+
+            <div class="message" id="message"></div>
+        </div>
+    </div>
+
+    <script>
+        let captchaData = null;
+        let sliderX = 0;
+        let isDragging = false;
+        let startX = 0;
+
+        // 缓存图片对象，避免重复加载
+        let cachedBgImg = null;
+        let cachedSliderImg = null;
+
+        const bgCanvas = document.getElementById('bgCanvas');
+        const sliderCanvas = document.getElementById('sliderCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        const sliderCtx = sliderCanvas.getContext('2d');
+        const sliderHandle = document.getElementById('sliderHandle');
+        const sliderTrack = document.getElementById('sliderTrack');
+        const messageDiv = document.getElementById('message');
+        const loadingDiv = document.getElementById('loading');
+        const captchaContainer = document.getElementById('captchaContainer');
+
+        // 初始化
+        window.onload = function() {
+            refreshCaptcha();
+            initSliderEvents();
+        };
+
+        // 刷新验证码
+        async function refreshCaptcha() {
+            showLoading(true);
+            hideMessage();
+            sliderX = 0;
+            resetSlider();
+
+            // 清空图片缓存
+            cachedBgImg = null;
+            cachedSliderImg = null;
+
+            try {
+                // 添加时间戳避免缓存
+                const response = await fetch('/api/captcha/generate?t=' + Date.now());
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    captchaData = result.data;
+                    await drawImages();
+                } else {
+                    showMessage('验证码生成失败: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('网络错误: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 绘制图片
+        async function drawImages() {
+            if (!captchaData) return;
+
+            console.log('=== 验证码数据 ===');
+            console.log('PositionY:', captchaData.positionY);
+
+            // 加载背景图和滑块图，并缓存
+            cachedBgImg = await loadImage(captchaData.background);
+            cachedSliderImg = await loadImage(captchaData.slider);
+
+            console.log('Background loaded:', cachedBgImg.width, 'x', cachedBgImg.height);
+            console.log('Slider loaded:', cachedSliderImg.width, 'x', cachedSliderImg.height);
+
+            // 清除canvas
+            bgCtx.clearRect(0, 0, 350, 200);
+            sliderCtx.clearRect(0, 0, 350, 200);
+
+            // 绘制背景图（带缺口，已经是350x200）
+            bgCtx.drawImage(cachedBgImg, 0, 0);
+
+            // 绘制滑块图 - 初始位置在最左侧
+            // 添加阴影效果使滑块更明显
+            sliderCtx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            sliderCtx.shadowBlur = 5;
+            sliderCtx.shadowOffsetX = 2;
+            sliderCtx.shadowOffsetY = 2;
+
+            // 直接绘制，位置由后端计算好
+            sliderCtx.drawImage(cachedSliderImg, 0, captchaData.positionY);
+
+            console.log('Slider drawn at: X=0, Y=', captchaData.positionY);
+
+            // 重置阴影
+            sliderCtx.shadowColor = 'transparent';
+            sliderCtx.shadowBlur = 0;
+            sliderCtx.shadowOffsetX = 0;
+            sliderCtx.shadowOffsetY = 0;
+        }
+
+        // 加载base64图片
+        function loadImage(base64) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = base64;
+            });
+        }
+
+        // 初始化滑块事件
+        function initSliderEvents() {
+            // 鼠标事件
+            sliderHandle.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', endDrag);
+
+            // 触摸事件
+            sliderHandle.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                startDrag(e.touches[0]);
+            });
+            document.addEventListener('touchmove', (e) => {
+                if (isDragging) {
+                    e.preventDefault();
+                    drag(e.touches[0]);
+                }
+            });
+            document.addEventListener('touchend', endDrag);
+        }
+
+        // 开始拖动
+        function startDrag(e) {
+            isDragging = true;
+            startX = e.clientX;
+            sliderHandle.style.transition = 'none';
+        }
+
+        // 拖动中
+        function drag(e) {
+            if (!isDragging) return;
+
+            const currentX = e.clientX;
+            const deltaX = currentX - startX;
+            const maxDelta = sliderTrack.offsetWidth - sliderHandle.offsetWidth;
+
+            sliderX = Math.max(0, Math.min(deltaX, maxDelta));
+            sliderHandle.style.left = sliderX + 'px';
+
+            // 更新滑块图位置
+            updateSliderPosition();
+        }
+
+        // 结束拖动
+        function endDrag() {
+            if (!isDragging) return;
+            isDragging = false;
+            sliderHandle.style.transition = 'transform 0.1s';
+
+            // 自动验证
+            verifyCaptcha();
+        }
+
+        // 更新滑块图位置 - 使用缓存的图片，避免闪烁
+        function updateSliderPosition() {
+            if (!captchaData || !cachedSliderImg) return;
+
+            sliderCtx.clearRect(0, 0, 350, 200);
+
+            // 添加阴影效果
+            sliderCtx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            sliderCtx.shadowBlur = 5;
+            sliderCtx.shadowOffsetX = 2;
+            sliderCtx.shadowOffsetY = 2;
+
+            // 直接使用缓存的图片绘制，Y坐标不变
+            sliderCtx.drawImage(cachedSliderImg, sliderX, captchaData.positionY);
+
+            // 重置阴影
+            sliderCtx.shadowColor = 'transparent';
+            sliderCtx.shadowBlur = 0;
+            sliderCtx.shadowOffsetX = 0;
+            sliderCtx.shadowOffsetY = 0;
+        }
+
+        // 重置滑块
+        function resetSlider() {
+            sliderHandle.style.left = '0px';
+            sliderX = 0;
+            if (captchaData) {
+                updateSliderPosition();
+            }
+        }
+
+        // 验证
+        async function verifyCaptcha() {
+            if (!captchaData) return;
+
+            try {
+                console.log('Verification: sliderX=', sliderX);
+
+                const response = await fetch('/api/captcha/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: captchaData.id,
+                        x: sliderX.toString()
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.code === 200 && result.data.success) {
+                    showMessage('验证成功！', 'success');
+                    // 验证成功，1秒后刷新
+                    setTimeout(() => {
+                        refreshCaptcha();
+                    }, 1000);
+                } else {
+                    showMessage('验证失败，请重试', 'error');
+                    // 验证失败，1秒后自动刷新
+                    setTimeout(() => {
+                        refreshCaptcha();
+                    }, 1000);
+                }
+            } catch (error) {
+                showMessage('验证请求失败: ' + error.message, 'error');
+                // 出错也自动刷新
+                setTimeout(() => {
+                    refreshCaptcha();
+                }, 1500);
+            }
+        }
+
+        // 显示消息
+        function showMessage(text, type) {
+            messageDiv.textContent = text;
+            messageDiv.className = 'message ' + type;
+            messageDiv.style.display = 'block';
+        }
+
+        // 隐藏消息
+        function hideMessage() {
+            messageDiv.style.display = 'none';
+        }
+
+        // 显示/隐藏加载状态
+        function showLoading(show) {
+            if (show) {
+                loadingDiv.classList.add('active');
+                captchaContainer.style.display = 'none';
+            } else {
+                loadingDiv.classList.remove('active');
+                captchaContainer.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
